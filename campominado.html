@@ -1,0 +1,221 @@
+
+
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Campo Minado</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #222; 
+    color: #fff; text-align: center; }
+  canvas { background: #888; cursor: pointer; }
+  #info { font-size: 22px; margin: 10px; }
+</style>
+</head>
+<body>
+<h1>Campo Minado</h1>
+<!-- PASSO 1 -->
+<div id="info"></div>
+<canvas id="tela"></canvas>
+<p>Clique: abrir | Botão direito: bandeira | R: reiniciar</p>
+
+<script>
+// ===== PASSO 2: configurar =====
+const canvas = document.getElementById("tela");
+const ctx = canvas.getContext("2d");
+const info = document.getElementById("info");
+const LINHAS = 10;
+const COLUNAS = 10;
+const MINAS = 12;
+const TAM = 40;
+canvas.width = COLUNAS * TAM;
+canvas.height = LINHAS * TAM;
+// ===== PASSO 3: variáveis e cores =====
+let grade = [];
+let fimDeJogo = false;
+let venceu = false;
+let primeiroClique = true;
+const CORES = ["", "blue", "green", "red", "navy",
+  "brown", "teal", "black", "gray"];//2B 24-11
+
+// ===== PASSO 4: o quadradinho =====
+function novoQuadrado() {
+  return {
+    mina: false,
+    aberta: false,
+    bandeira: false,
+    vizinhas: 0
+  };
+}
+
+// ===== PASSO 5: criar a grade =====
+function novoJogo() {
+  grade = [];
+  for (let l = 0; l < LINHAS; l++) {
+    grade[l] = [];
+    for (let c = 0; c < COLUNAS; c++) {
+      grade[l][c] = novoQuadrado();
+    }
+  }
+  fimDeJogo = false;
+  venceu = false;
+  primeiroClique = true;
+  desenhar();
+}
+
+// ===== PASSO 6: sortear as minas =====
+function colocarMinas(ls, cs) {
+  let colocadas = 0;
+  while (colocadas < MINAS) {
+    const l = Math.floor(Math.random() * LINHAS);
+    const c = Math.floor(Math.random() * COLUNAS);
+    const segura = (l === ls && c === cs);
+    if (!grade[l][c].mina && !segura) {
+      grade[l][c].mina = true;
+      colocadas++;
+    }
+  }
+}
+
+// ===== PASSO 7: dentro da grade? =====
+function dentro(l, c) {
+  return l >= 0 && l < LINHAS && c >= 0 && c < COLUNAS;
+}
+
+// ===== PASSO 8: contar minas ao redor =====
+function contarAoRedor(l, c) {
+  let total = 0;
+  for (let dl = -1; dl <= 1; dl++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const nl = l + dl;
+      const nc = c + dc;
+      if (dentro(nl, nc) && grade[nl][nc].mina) {
+        total++;
+      }
+    }
+  }
+  return total;
+}
+
+// ===== PASSO 9: contar todos =====
+function contarTodas() {
+  for (let l = 0; l < LINHAS; l++) {
+    for (let c = 0; c < COLUNAS; c++) {
+      grade[l][c].vizinhas = contarAoRedor(l, c);
+    }
+  }
+}
+
+// ===== PASSO 10: abrir quadrado =====
+function abrir(l, c) {
+  if (!dentro(l, c)) return;
+  const q = grade[l][c];
+  if (q.aberta || q.bandeira) return;
+  q.aberta = true;
+  if (q.mina) { fimDeJogo = true; return; }
+  if (q.vizinhas === 0) {
+    for (let dl = -1; dl <= 1; dl++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        abrir(l + dl, c + dc);
+      }
+    }
+  }
+}
+
+// ===== PASSO 11: vitória =====
+function verificarVitoria() {
+  for (let l = 0; l < LINHAS; l++) {
+    for (let c = 0; c < COLUNAS; c++) {
+      const q = grade[l][c];
+      if (!q.mina && !q.aberta) return;
+    }
+  }
+  venceu = true;
+  fimDeJogo = true;
+}
+
+// ===== PASSO 12: posição do mouse =====
+function posicao(e) {
+  const r = canvas.getBoundingClientRect();
+  return {
+    c: Math.floor((e.clientX - r.left) / TAM),
+    l: Math.floor((e.clientY - r.top) / TAM)
+  };
+}
+
+// ===== PASSO 13: clique =====
+function jogar(l, c) {
+  if (primeiroClique) {
+    colocarMinas(l, c);
+    contarTodas();
+    primeiroClique = false;
+  }
+  abrir(l, c);
+  verificarVitoria();
+  desenhar();
+}
+canvas.addEventListener("click", function (e) {
+  if (fimDeJogo) return;
+  const p = posicao(e);
+  jogar(p.l, p.c);
+});
+
+// ===== PASSO 14: bandeira =====
+canvas.addEventListener("contextmenu", function (e) {
+  e.preventDefault();
+  if (fimDeJogo) return;
+  const p = posicao(e);
+  const q = grade[p.l][p.c];
+  if (!q.aberta) q.bandeira = !q.bandeira;
+  desenhar();
+});
+
+// ===== PASSO 15: fundo =====
+function desenharQuadrado(q, x, y) {
+  ctx.fillStyle = q.aberta ? "#ddd" : "#999";
+  if (q.aberta && q.mina) ctx.fillStyle = "#e33";
+  ctx.fillRect(x, y, TAM, TAM);
+  ctx.strokeStyle = "#555";
+  ctx.strokeRect(x, y, TAM, TAM);
+}
+
+// ===== PASSO 16: número e bomba =====
+function escreverTexto(q, x, y) {
+  let txt = "";
+  const mostrar = q.aberta || fimDeJogo;
+  if (q.bandeira) txt = "🚩";
+  else if (q.mina && mostrar) txt = "💣";
+  else if (q.aberta && q.vizinhas > 0) txt = q.vizinhas;
+  ctx.fillStyle = CORES[q.vizinhas];
+  ctx.fillText(txt, x + TAM / 2, y + TAM / 2);
+}
+
+// ===== PASSO 17: desenhar tudo =====
+function desenhar() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = "bold 24px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  let bandeiras = 0;
+  for (let l = 0; l < LINHAS; l++) {
+    for (let c = 0; c < COLUNAS; c++) {
+      const q = grade[l][c];
+      desenharQuadrado(q, c * TAM, l * TAM);
+      escreverTexto(q, c * TAM, l * TAM);
+      if (q.bandeira) bandeiras++;
+    }
+  }
+  if (venceu) info.textContent = "🎉 Você venceu!";
+  else if (fimDeJogo) info.textContent = "💥 BOOM!";
+  else info.textContent = "Minas: " + (MINAS - bandeiras);
+}
+
+// ===== PASSO 18: começar e reiniciar =====
+document.addEventListener("keydown", function (e) {
+  if (e.key === "r" || e.key === "R") novoJogo();
+});
+novoJogo();
+</script>
+</body>
+</html>
